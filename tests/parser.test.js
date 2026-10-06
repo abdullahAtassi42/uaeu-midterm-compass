@@ -14,4 +14,14 @@ for (const [text, date, time] of cases) {
 }
 assert.equal(parser.parseDocument({ text:"The practice midterm is on October 15." }, now).length, 0);
 assert.equal(parser.parseDocument({ text:"Office hours are on October 15." }, now).length, 0);
+const [revised] = parser.parseDocument({
+  text: "The midterm was originally October 15 at 10 AM in Room B101. It has been postponed. New date October 22, 2026 at 3:30 PM in Room B201.",
+  course: "STAT 101",
+  sourcePublishedAt: "2026-10-10T08:00:00.000Z"
+}, now);
+assert.equal(revised.date, "2026-10-22");
+assert.equal(revised.time, "15:30");
+assert.equal(revised.location, "B201");
+assert.equal(revised.revision, true);
+assert.equal(revised.sourcePublishedAt, "2026-10-10T08:00:00.000Z");
 console.log("parser tests passed");

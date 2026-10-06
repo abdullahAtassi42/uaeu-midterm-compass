@@ -37,12 +37,19 @@
     ];
     const nodes = [...new Set(selectors.flatMap(selector => [...document.querySelectorAll(selector)]))];
     const course = courseName();
-    const documents = nodes.map((node, index) => ({
-      course,
-      text: node.innerText?.replace(/\s+/g, " ").trim(),
-      sourceUrl: location.href,
-      sourceLabel: node.getAttribute("aria-label") || node.querySelector("h1,h2,h3,h4")?.textContent?.trim() || `Blackboard item ${index + 1}`
-    })).filter(item => item.text && item.text.length >= 20 && item.text.length <= 12000);
+    const documents = nodes.map((node, index) => {
+      const container = node.closest(".message-card, tr.announcement-item-row") || node;
+      const raw = container.innerText || node.innerText || "";
+      const timestamp = raw.match(/\b\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}\s*(?:AM|PM)\b/i)?.[0];
+      const published = timestamp ? new Date(timestamp) : null;
+      return {
+        course,
+        text: node.innerText?.replace(/\s+/g, " ").trim(),
+        sourceUrl: location.href,
+        sourceLabel: node.getAttribute("aria-label") || node.querySelector("h1,h2,h3,h4")?.textContent?.trim() || `Blackboard item ${index + 1}`,
+        sourcePublishedAt: published && !Number.isNaN(published.getTime()) ? published.toISOString() : null
+      };
+    }).filter(item => item.text && item.text.length >= 20 && item.text.length <= 12000);
     if (!documents.length && document.body?.innerText) {
       documents.push({ course, text: document.body.innerText.slice(0, 30000), sourceUrl: location.href, sourceLabel: document.title });
     }
@@ -58,6 +65,7 @@
   }
 
   async function runBackgroundPageScan() {
+    const params = new URLSearchParams(location.search);
     const page = location.pathname.endsWith("/announcements") ? "announcements" : "messages";
     await waitFor(() => page === "announcements" ? document.querySelector("announcement-list") : document.querySelector("bb-course-conversations"), 20000);
     const documents = collectDocuments();
@@ -66,19 +74,40 @@
       type: "SAVE_AUTO_COURSE_PAGE",
       course: courseIdentity(),
       page,
-      detected: result.detected || 0
+      detected: result.detected || 0,
+      scanMode: params.get("midterm_compass_mode") || "direct"
     });
-  }
-
-  function maybeStartAutomaticCourseScan() {
-    if (!/\/ultra\/courses\/[^/]+\/outline\/?$/.test(location.pathname)) return;
-    chrome.runtime.sendMessage({ type: "AUTO_SCAN_CURRENT_COURSE", course: courseIdentity() }).catch(() => {});
   }
 
   function currentTermToken() {
     const now = new Date(); const month = now.getMonth() + 1;
     const term = month >= 8 ? "Fall" : month <= 5 ? "Spring" : "Summer";
     return `${term}_${now.getFullYear()}`;
+  }
+
+  let lastHomeScanSignature = "";
+  function maybeStartCoursesHomeScan() {
+    if (!/^\/ultra\/course\/?$/.test(location.pathname)) return;
+    const term = currentTermToken();
+    const courses = [...document.querySelectorAll("article[data-course-id]")]
+      .filter(article => !article.classList.contains("courseUnavailable"))
+      .map(article => {
+        const code = article.querySelector(".course-id")?.textContent?.replace(/\s+/g, " ").trim() || "";
+        return {
+          id: article.dataset.courseId,
+          code,
+          name: article.querySelector("h4")?.textContent?.replace(/\s+/g, " ").trim() || code || "Course",
+          term: term.replace("_", " ")
+        };
+      })
+      .filter(course => course.id && course.code.includes(term));
+    if (!courses.length) return;
+    const signature = courses.map(course => course.id).sort().join("|");
+    if (signature === lastHomeScanSignature) return;
+    lastHomeScanSignature = signature;
+    chrome.runtime.sendMessage({ type: "START_COURSES_HOME_SCAN", courses }).catch(() => {
+      lastHomeScanSignature = "";
+    });
   }
 
   function waitFor(test, timeout = 10000) {
@@ -178,14 +207,15 @@
     runBackgroundPageScan().catch(error => console.warn("Midterm Compass background scan failed", error));
   } else {
     addButton();
-    maybeStartAutomaticCourseScan();
+    maybeStartCoursesHomeScan();
     let lastPath = location.pathname;
     new MutationObserver(() => {
       addButton();
       if (location.pathname !== lastPath) {
         lastPath = location.pathname;
-        maybeStartAutomaticCourseScan();
+        lastHomeScanSignature = "";
       }
+      maybeStartCoursesHomeScan();
     }).observe(document.documentElement, { childList: true, subtree: true });
   }
 })();

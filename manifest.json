@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Midterm Compass for Blackboard",
-  "version": "1.1.0",
-  "description": "Find midterm dates in Blackboard messages and turn them into a private, editable schedule.",
+  "version": "1.2.0",
+  "description": "Scan Blackboard course announcements and messages for current midterm dates, times, and locations.",
   "permissions": ["storage", "notifications", "alarms", "downloads", "activeTab"],
   "optional_host_permissions": [
     "http://127.0.0.1/*",

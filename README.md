@@ -7,17 +7,19 @@ It is configured for the UAEU sign-in address at `https://elearning.uaeu.ac.ae/`
 ## What it does
 
 - Adds a **Midterm Compass** button to UAEU Blackboard pages.
-- Can step through every current-term course from Blackboard's main Messages page and check both **Messages** and **Announcements**.
+- Automatically discovers every available current-term course when Blackboard's **Courses** home page opens.
+- Checks each course's **Announcements first**; only when no dated exam is found does it check that course's **Messages**.
 - Lists every scanned course even when no midterm date is found, clearly marked **Not announced yet**.
 - Scans visible messages, announcements, and list items for exam language and dates.
-- Understands phrases such as “the midterm is on 15th of October at 10:30 AM.”
+- Extracts the midterm **date, time, and location** from phrases such as “the midterm is on 15th of October at 10:30 AM in Room B201.”
+- Reconciles rescheduled exams using the Blackboard post time, keeps the newest details, and retains a short previous-version history.
 - Deduplicates repeated scans and attaches a confidence score and source excerpt.
 - Shows a chronological schedule with search and “needs review” filtering.
 - Lets students add, correct, or remove entries manually.
 - Exports the schedule as an `.ics` calendar file.
 - Sends configurable local Chrome notifications 7 days and 1 day before an exam.
 - Keeps data in the browser by default.
-- Automatically checks an individual course when its Blackboard **Content** page is opened. The two scanner tabs run in the background and close when finished.
+- Opens scanner tabs in the background and closes each one as soon as that course is finished.
 
 > **Important:** The extension is an assistant, not an official academic record. Always verify dates against the original Blackboard post and your course syllabus.
 
@@ -32,23 +34,23 @@ It is configured for the UAEU sign-in address at `https://elearning.uaeu.ac.ae/`
 
 ## Use it
 
-1. In Blackboard, open the main **Messages** page from the left navigation.
-2. Let the message list finish loading. Scroll to load older messages when needed.
-3. Open the extension popup and choose **Scan current courses**. The Blackboard tab checks the Messages and Announcements screens for every current-term course, then returns to the main Messages page. For a single screen, use the floating button or **Scan this page only**.
+1. In Blackboard, open **Courses** from the left navigation and let the current-term course cards load.
+2. Midterm Compass automatically starts one scan for every available current-term course. It reads Announcements first and uses Messages only as a fallback.
+3. Keep Blackboard signed in while the inactive scanner tabs briefly open and close. For a single visible screen, use the floating button or **Scan this page only**.
 4. Open **Full schedule** and review low-confidence entries.
    Courses with no detected date remain visible as **Not announced yet**; scanning again updates them when an instructor posts the date.
 5. Export the reviewed schedule to Apple Calendar, Google Calendar, Outlook, or another app that accepts `.ics` files.
 
-### Automatic per-course scanning
+### Automatic all-course scanning
 
-You do not have to run the full-semester scan every time. Opening a course's **Content** page (`/outline`) starts a quiet refresh for that course:
+Opening Blackboard's **Courses** home page (`/ultra/course`) starts a quiet refresh for the visible current-term courses:
 
-1. Midterm Compass opens the course's Messages and Announcements pages in inactive tabs.
-2. Each page is read using the existing signed-in Blackboard session.
-3. The tabs close as soon as extraction finishes.
-4. The schedule changes to **Announced** or **Not announced yet** for that course.
+1. The extension reads each course card and stable Blackboard course ID.
+2. It opens that course's Announcements page in an inactive tab using the existing signed-in session.
+3. If a dated midterm is found, that course is complete. If not, it opens the course's Messages page as a fallback.
+4. The scanner tab closes after reporting its result, and the schedule changes to **Announced** or **Not announced yet**.
 
-Automatic scans are throttled to once per course every 30 minutes. Use **Scan current courses** from the main Messages page when you want an immediate full refresh.
+Automatic Courses-home scans are throttled for five minutes to prevent Blackboard's frequent page mutations from launching duplicate work. Reload the extension and revisit Courses when testing a source change.
 
 The extension intentionally scans the page the student has opened rather than using undocumented private Blackboard APIs. This is more resilient, avoids storing UAEU credentials, and keeps access aligned with what the signed-in user can already see.
 
@@ -87,33 +89,34 @@ After changing source files, click **Reload** on `chrome://extensions`, then ref
 ## How the implementation works
 
 1. `content/content.js` runs only on the two UAEU Blackboard hosts declared in `manifest.json`.
-2. On the main `/ultra/messages` screen it reads the visible current-term course cards, preserving each course even when no exam text exists.
-3. For each course it opens the course Messages screen, reads message bodies, then opens Announcements and reads announcement bodies. Posted timestamps are deliberately excluded.
-4. `lib/parser.js` looks for explicit exam language near a valid date/time. Cancelled, mock, and practice items are rejected.
-5. `background.js` merges duplicate exam events and stores a status for every scanned course:
+2. On the main `/ultra/course` screen it reads `article[data-course-id]` cards for the current term, preserving each course even when no exam text exists.
+3. `background.js` opens Announcements first for each course. It opens Messages only when the announcement scan reports zero dated exams.
+4. `lib/parser.js` looks for explicit exam language near a valid date, time, and location. Cancelled, mock, and practice items are rejected; postponement/rescheduling language is treated as an update.
+5. Blackboard's visible post timestamp is stored as source metadata (not parsed as an exam date). Events with the same course and assessment identity are reconciled so the newest post wins, while prior date/time/location values remain in bounded history.
+6. `background.js` stores a status for every scanned course:
    - `announced` when at least one dated exam item was detected;
    - `not-announced` when Messages and Announcements were checked but no dated item was detected.
-6. `schedule/schedule.js` combines the dated events and course records. Undated courses appear with **Awaiting announcement / Date TBD**, and a later scan replaces that state once a dated post is found.
-7. On an individual course outline, the content script asks the service worker to open inactive Messages and Announcements tabs. Those tabs report their extraction result and close themselves; the student's current course page does not move.
+7. `schedule/schedule.js` combines the dated events and course records. Undated courses appear with **Awaiting announcement / Date TBD**, and a later scan replaces that state once a dated post is found.
 
 ### Design choices reviewers should notice
 
 - **No credential handling:** the extension reuses the Blackboard session already held by Chrome and never reads passwords, cookies, or authentication tokens.
 - **No undocumented LMS API:** scanning follows visible Blackboard pages, which is easier to audit and less likely to violate institutional integrations.
-- **False-positive protection:** posted timestamps are excluded from message bodies, cancelled/practice exam language is rejected, and confidence/source excerpts are retained for review.
+- **Changed-date protection:** source timestamps decide which matching assessment announcement is newer; the schedule marks updated entries and keeps previous values for review.
+- **False-positive protection:** posted timestamps are stored separately from message bodies, cancelled/practice exam language is rejected, and confidence/source excerpts are retained for review.
 - **Graceful incompleteness:** a missing date is represented explicitly as **Not announced yet**, not silently omitted.
 - **Bounded automation:** background tabs are inactive, close after use, and repeat scans are throttled.
 - **Privacy-first default:** the local parser sends no course content off-device. Optional model-based AI requires a secure proxy.
 
 ### Implement it on your own Blackboard installation
 
-For UAEU, no source change is needed. Load the unpacked extension, refresh Blackboard, open the main Messages screen, and press **Scan current courses**.
+For UAEU, no source change is needed. Load the unpacked extension, refresh Blackboard, and open the main **Courses** screen. The scan starts after the current-term cards load.
 
 For another university:
 
 1. Add its Blackboard hostname to `host_permissions` and the content-script `matches` list in `manifest.json`.
 2. Inspect the institution's course card, message body, and announcement row markup.
-3. Update only the selector list in `collectDocuments()` and, if needed, the current-course selectors in `scanAllCurrentCourses()`.
+3. Update the selector list in `collectDocuments()` and, if needed, the course-card selectors in `maybeStartCoursesHomeScan()`.
 4. Add real phrasing examples to `tests/parser.test.js` without including student names or other private information.
 5. Run `npm test` and `npm run check`, reload the extension, and test with a non-destructive Blackboard scan.
 
@@ -134,11 +137,10 @@ tests/                   parser coverage
 
 Blackboard Ultra is a single-page application and institutions can customize its markup. The scanner uses semantic selectors (`article`, list items, roles, accessible labels) plus Blackboard `data-automation-id` hints. If UAEU changes the layout, add a selector in `collectDocuments()` in `content/content.js`; the parser and schedule do not need to change.
 
-The all-course flow uses Blackboard's visible course links and current signed-in session; it does not call unsupported private endpoints or store credentials. It scans rendered message previews and announcement summaries for the active term, then returns to the Messages index. Posted timestamps are excluded from the extracted body so they cannot be mistaken for exam dates.
+The all-course flow uses Blackboard's visible course IDs and current signed-in session; it does not call unsupported private endpoints or store credentials. It scans rendered announcement summaries first and message previews only as fallback. Posted timestamps are stored separately from the extracted body so they can order revisions without being mistaken for exam dates.
 
 ## Suggested next additions
 
-- A guided “scan all courses” flow that advances only through user-visible course pages.
 - Syllabus/PDF extraction, with an explicit file-selection consent step.
 - Conflict detection for exams scheduled too close together.
 - A study-plan generator that counts backward from each confirmed midterm.
