@@ -2,6 +2,7 @@ importScripts("lib/parser.js");
 
 const DEFAULTS = {
   events: [],
+  courses: [],
   settings: { aiMode: "browser", reminderDays: [7, 1], apiEndpoint: "https://api.openai.com/v1", apiModel: "gpt-4o-mini" },
   lastScan: null
 };
@@ -10,6 +11,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.local.get(Object.keys(DEFAULTS));
   await chrome.storage.local.set({
     events: current.events || DEFAULTS.events,
+    courses: current.courses || DEFAULTS.courses,
     settings: { ...DEFAULTS.settings, ...(current.settings || {}) },
     lastScan: current.lastScan || null
   });
@@ -85,8 +87,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true, ...(await mergeEvents(safe)), detected: safe.length });
     } else if (message.type === "OPEN_SCHEDULE") {
       await chrome.tabs.create({ url: chrome.runtime.getURL("schedule/schedule.html") }); sendResponse({ ok: true });
+    } else if (message.type === "SAVE_COURSE_SCAN") {
+      const { courses = [] } = await chrome.storage.local.get("courses");
+      const scanned = (message.courses || []).map(course => ({
+        ...course,
+        status: course.detected > 0 ? "announced" : "not-announced",
+        lastScanned: new Date().toISOString()
+      }));
+      const scannedIds = new Set(scanned.map(course => course.id));
+      const next = [...courses.filter(course => !scannedIds.has(course.id) && course.term !== message.term), ...scanned];
+      await chrome.storage.local.set({ courses: next, lastScan: new Date().toISOString() });
+      sendResponse({ ok: true, courses: next });
     } else if (message.type === "GET_STATE") {
-      sendResponse({ ok: true, ...(await chrome.storage.local.get(["events", "settings", "lastScan"])) });
+      sendResponse({ ok: true, ...(await chrome.storage.local.get(["events", "courses", "settings", "lastScan"])) });
     } else if (message.type === "SAVE_EVENT") {
       const { events = [] } = await chrome.storage.local.get("events");
       const event = { ...message.event, updatedAt: new Date().toISOString() };
