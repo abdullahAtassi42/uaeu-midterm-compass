@@ -69,7 +69,7 @@ The API prompt treats Blackboard text as untrusted content and asks the model to
 | `notifications`, `alarms` | Remind the student about upcoming midterms. |
 | `downloads` | Export an `.ics` calendar file. |
 | `activeTab` | Scan the Blackboard tab selected by the student. |
-| Optional API origins | Granted only when API AI is explicitly enabled. |
+| Optional local-proxy origins | Granted only when proxy AI is explicitly enabled. Direct OpenAI API access is not requested. |
 
 The extension does not capture passwords, cookies, or authentication tokens.
 

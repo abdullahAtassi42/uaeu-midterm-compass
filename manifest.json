@@ -5,7 +5,6 @@
   "description": "Find midterm dates in Blackboard messages and turn them into a private, editable schedule.",
   "permissions": ["storage", "notifications", "alarms", "downloads", "activeTab"],
   "optional_host_permissions": [
-    "https://api.openai.com/*",
     "http://127.0.0.1/*",
     "http://localhost/*"
   ],
