@@ -1,0 +1,11 @@
+#midterm-compass-launcher {
+  position: fixed; right: 22px; bottom: 22px; z-index: 2147483646; display: flex; align-items: center; gap: 9px;
+  border: 0; border-radius: 999px; padding: 12px 17px; color: #fff; background: #173b57;
+  box-shadow: 0 8px 28px rgba(15, 35, 50, .25); font: 600 14px/1.2 system-ui, sans-serif; cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+#midterm-compass-launcher:hover { transform: translateY(-2px); box-shadow: 0 11px 32px rgba(15, 35, 50, .32); }
+#midterm-compass-launcher span:first-child { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #2a9d8f; }
+#midterm-compass-launcher.is-scanning span:first-child { animation: mc-pulse .8s infinite alternate; }
+#midterm-compass-toast { position: fixed; right: 22px; bottom: 82px; z-index: 2147483647; max-width: 330px; padding: 12px 16px; border-radius: 12px; color: #fff; background: #102a3c; box-shadow: 0 8px 28px #0003; font: 500 14px/1.4 system-ui, sans-serif; }
+@keyframes mc-pulse { to { transform: scale(.75); opacity: .55; } }

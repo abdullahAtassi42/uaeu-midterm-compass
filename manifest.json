@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Midterm Compass for Blackboard",
+  "version": "1.0.0",
+  "description": "Find midterm dates in Blackboard messages and turn them into a private, editable schedule.",
+  "permissions": ["storage", "notifications", "alarms", "downloads", "activeTab"],
+  "optional_host_permissions": [
+    "https://api.openai.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "host_permissions": [
+    "https://elearning.uaeu.ac.ae/*",
+    "https://uaeu.blackboard.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Midterm Compass",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://elearning.uaeu.ac.ae/*",
+        "https://uaeu.blackboard.com/*"
+      ],
+      "js": ["lib/parser.js", "content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options/options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["schedule/schedule.html"],
+      "matches": [
+        "https://elearning.uaeu.ac.ae/*",
+        "https://uaeu.blackboard.com/*"
+      ]
+    }
+  ]
+}
