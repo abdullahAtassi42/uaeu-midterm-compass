@@ -107,11 +107,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else if (message.type === "OPEN_SCHEDULE") {
       await chrome.tabs.create({ url: chrome.runtime.getURL("schedule/schedule.html") }); sendResponse({ ok: true });
     } else if (message.type === "START_COURSES_HOME_SCAN") {
-      const { courses = [], coursesHomeLastScan = null } = await chrome.storage.local.get(["courses", "coursesHomeLastScan"]);
-      const recentlyScanned = coursesHomeLastScan && Date.now() - new Date(coursesHomeLastScan).getTime() < 5 * 60 * 1000;
-      if (recentlyScanned) {
-        sendResponse({ ok: true, skipped: true, reason: "recently-scanned" });
-      } else {
+      const { courses = [] } = await chrome.storage.local.get("courses");
         const incoming = message.courses || [];
         const incomingIds = new Set(incoming.map(course => course.id));
         const scanning = incoming.map(course => ({
@@ -123,14 +119,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           scanStartedAt: new Date().toISOString()
         }));
         const next = [...courses.filter(course => !incomingIds.has(course.id)), ...scanning];
-        await chrome.storage.local.set({ courses: next, coursesHomeLastScan: new Date().toISOString() });
+        await chrome.storage.local.set({ courses: next });
         const origin = new URL(sender.tab.url).origin;
         for (const course of incoming) {
           const base = `${origin}/ultra/courses/${encodeURIComponent(course.id)}`;
           await chrome.tabs.create({ url: `${base}/announcements?midterm_compass_background=1&midterm_compass_mode=home`, active: false });
         }
         sendResponse({ ok: true, started: incoming.length });
-      }
     } else if (message.type === "SAVE_AUTO_COURSE_PAGE") {
       const { courses = [], events = [] } = await chrome.storage.local.get(["courses", "events"]);
       const previous = courses.find(course => course.id === message.course.id) || {};

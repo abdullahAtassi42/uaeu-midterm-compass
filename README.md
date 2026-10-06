@@ -50,7 +50,7 @@ Opening Blackboard's **Courses** home page (`/ultra/course`) starts a quiet refr
 3. If a dated midterm is found, that course is complete. If not, it opens the course's Messages page as a fallback.
 4. The scanner tab closes after reporting its result, and the schedule changes to **Announced** or **Not announced yet**.
 
-Automatic Courses-home scans are throttled for five minutes to prevent Blackboard's frequent page mutations from launching duplicate work. Reload the extension and revisit Courses when testing a source change.
+Each Courses-page visit launches one scan after the course cards load. An in-page signature prevents Blackboard's frequent DOM mutations from launching duplicates; leaving and reopening Courses starts a fresh scan.
 
 The extension intentionally scans the page the student has opened rather than using undocumented private Blackboard APIs. This is more resilient, avoids storing UAEU credentials, and keeps access aligned with what the signed-in user can already see.
 
