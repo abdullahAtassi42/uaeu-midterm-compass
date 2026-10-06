@@ -87,6 +87,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true, ...(await mergeEvents(safe)), detected: safe.length });
     } else if (message.type === "OPEN_SCHEDULE") {
       await chrome.tabs.create({ url: chrome.runtime.getURL("schedule/schedule.html") }); sendResponse({ ok: true });
+    } else if (message.type === "AUTO_SCAN_CURRENT_COURSE") {
+      const { courses = [] } = await chrome.storage.local.get("courses");
+      const existing = courses.find(course => course.id === message.course.id);
+      const recentlyScanned = existing?.lastScanned && Date.now() - new Date(existing.lastScanned).getTime() < 30 * 60 * 1000;
+      if (recentlyScanned) {
+        sendResponse({ ok: true, skipped: true, reason: "recently-scanned" });
+      } else {
+        const scanningCourse = { ...existing, ...message.course, pageDetections: {}, detected: 0, status: "scanning", scanStartedAt: new Date().toISOString() };
+        await chrome.storage.local.set({ courses: [...courses.filter(course => course.id !== scanningCourse.id), scanningCourse] });
+        const origin = new URL(sender.tab.url).origin;
+        const base = `${origin}/ultra/courses/${encodeURIComponent(message.course.id)}`;
+        const marker = "midterm_compass_background=1";
+        await chrome.tabs.create({ url: `${base}/messages?${marker}`, active: false });
+        await chrome.tabs.create({ url: `${base}/announcements?${marker}`, active: false });
+        sendResponse({ ok: true, started: true });
+      }
+    } else if (message.type === "SAVE_AUTO_COURSE_PAGE") {
+      const { courses = [] } = await chrome.storage.local.get("courses");
+      const previous = courses.find(course => course.id === message.course.id) || {};
+      const pageDetections = { ...(previous.pageDetections || {}), [message.page]: message.detected || 0 };
+      const completed = Object.prototype.hasOwnProperty.call(pageDetections, "messages") && Object.prototype.hasOwnProperty.call(pageDetections, "announcements");
+      const detected = Object.values(pageDetections).reduce((sum, value) => sum + Number(value || 0), 0);
+      const updated = {
+        ...previous,
+        ...message.course,
+        pageDetections,
+        detected,
+        status: completed ? (detected > 0 ? "announced" : "not-announced") : "scanning",
+        lastScanned: completed ? new Date().toISOString() : previous.lastScanned || null
+      };
+      await chrome.storage.local.set({ courses: [...courses.filter(course => course.id !== updated.id), updated] });
+      if (sender.tab?.id) setTimeout(() => chrome.tabs.remove(sender.tab.id).catch(() => {}), 100);
+      sendResponse({ ok: true, completed, course: updated });
     } else if (message.type === "SAVE_COURSE_SCAN") {
       const { courses = [] } = await chrome.storage.local.get("courses");
       const scanned = (message.courses || []).map(course => ({

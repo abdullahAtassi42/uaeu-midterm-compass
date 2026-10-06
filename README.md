@@ -17,6 +17,7 @@ It is configured for the UAEU sign-in address at `https://elearning.uaeu.ac.ae/`
 - Exports the schedule as an `.ics` calendar file.
 - Sends configurable local Chrome notifications 7 days and 1 day before an exam.
 - Keeps data in the browser by default.
+- Automatically checks an individual course when its Blackboard **Content** page is opened. The two scanner tabs run in the background and close when finished.
 
 > **Important:** The extension is an assistant, not an official academic record. Always verify dates against the original Blackboard post and your course syllabus.
 
@@ -37,6 +38,17 @@ It is configured for the UAEU sign-in address at `https://elearning.uaeu.ac.ae/`
 4. Open **Full schedule** and review low-confidence entries.
    Courses with no detected date remain visible as **Not announced yet**; scanning again updates them when an instructor posts the date.
 5. Export the reviewed schedule to Apple Calendar, Google Calendar, Outlook, or another app that accepts `.ics` files.
+
+### Automatic per-course scanning
+
+You do not have to run the full-semester scan every time. Opening a course's **Content** page (`/outline`) starts a quiet refresh for that course:
+
+1. Midterm Compass opens the course's Messages and Announcements pages in inactive tabs.
+2. Each page is read using the existing signed-in Blackboard session.
+3. The tabs close as soon as extraction finishes.
+4. The schedule changes to **Announced** or **Not announced yet** for that course.
+
+Automatic scans are throttled to once per course every 30 minutes. Use **Scan current courses** from the main Messages page when you want an immediate full refresh.
 
 The extension intentionally scans the page the student has opened rather than using undocumented private Blackboard APIs. This is more resilient, avoids storing UAEU credentials, and keeps access aligned with what the signed-in user can already see.
 
@@ -82,6 +94,16 @@ After changing source files, click **Reload** on `chrome://extensions`, then ref
    - `announced` when at least one dated exam item was detected;
    - `not-announced` when Messages and Announcements were checked but no dated item was detected.
 6. `schedule/schedule.js` combines the dated events and course records. Undated courses appear with **Awaiting announcement / Date TBD**, and a later scan replaces that state once a dated post is found.
+7. On an individual course outline, the content script asks the service worker to open inactive Messages and Announcements tabs. Those tabs report their extraction result and close themselves; the student's current course page does not move.
+
+### Design choices reviewers should notice
+
+- **No credential handling:** the extension reuses the Blackboard session already held by Chrome and never reads passwords, cookies, or authentication tokens.
+- **No undocumented LMS API:** scanning follows visible Blackboard pages, which is easier to audit and less likely to violate institutional integrations.
+- **False-positive protection:** posted timestamps are excluded from message bodies, cancelled/practice exam language is rejected, and confidence/source excerpts are retained for review.
+- **Graceful incompleteness:** a missing date is represented explicitly as **Not announced yet**, not silently omitted.
+- **Bounded automation:** background tabs are inactive, close after use, and repeat scans are throttled.
+- **Privacy-first default:** the local parser sends no course content off-device. Optional model-based AI requires a secure proxy.
 
 ### Implement it on your own Blackboard installation
 

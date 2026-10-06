@@ -15,6 +15,20 @@
     return "Blackboard course";
   }
 
+  function courseIdentity() {
+    const outline = document.querySelector("a[href*='/ultra/courses/'][href$='/outline']");
+    const text = outline?.textContent?.replace(/\s+/g, " ").trim() || "";
+    const [code = "", ...nameParts] = text.split("•").map(part => part.trim());
+    const id = (location.pathname.match(/\/ultra\/courses\/([^/]+)/) || [])[1] || code || courseName();
+    const termMatch = code.match(/_(Fall|Spring|Summer)_(\d{4})$/i);
+    return {
+      id,
+      code: code || id,
+      name: nameParts.join(" • ") || courseName(),
+      term: termMatch ? `${termMatch[1][0].toUpperCase()}${termMatch[1].slice(1).toLowerCase()} ${termMatch[2]}` : "Current term"
+    };
+  }
+
   function collectDocuments() {
     const selectors = [
       ".message-card .latest-message", "tr.announcement-item-row .announcement-header-column:first-child",
@@ -41,6 +55,24 @@
     const response = await chrome.runtime.sendMessage({ type: "PROCESS_DOCUMENTS", documents });
     if (response.ok && showToast) toast(response.detected ? `Found ${response.detected} possible midterm${response.detected === 1 ? "" : "s"}.` : "No dated midterms found on this page.");
     return response;
+  }
+
+  async function runBackgroundPageScan() {
+    const page = location.pathname.endsWith("/announcements") ? "announcements" : "messages";
+    await waitFor(() => page === "announcements" ? document.querySelector("announcement-list") : document.querySelector("bb-course-conversations"), 20000);
+    const documents = collectDocuments();
+    const result = await chrome.runtime.sendMessage({ type: "PROCESS_DOCUMENTS", documents });
+    await chrome.runtime.sendMessage({
+      type: "SAVE_AUTO_COURSE_PAGE",
+      course: courseIdentity(),
+      page,
+      detected: result.detected || 0
+    });
+  }
+
+  function maybeStartAutomaticCourseScan() {
+    if (!/\/ultra\/courses\/[^/]+\/outline\/?$/.test(location.pathname)) return;
+    chrome.runtime.sendMessage({ type: "AUTO_SCAN_CURRENT_COURSE", course: courseIdentity() }).catch(() => {});
   }
 
   function currentTermToken() {
@@ -141,6 +173,19 @@
     return true;
   });
 
-  addButton();
-  new MutationObserver(addButton).observe(document.documentElement, { childList: true, subtree: true });
+  const isBackgroundScan = new URLSearchParams(location.search).get("midterm_compass_background") === "1";
+  if (isBackgroundScan) {
+    runBackgroundPageScan().catch(error => console.warn("Midterm Compass background scan failed", error));
+  } else {
+    addButton();
+    maybeStartAutomaticCourseScan();
+    let lastPath = location.pathname;
+    new MutationObserver(() => {
+      addButton();
+      if (location.pathname !== lastPath) {
+        lastPath = location.pathname;
+        maybeStartAutomaticCourseScan();
+      }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  }
 })();
