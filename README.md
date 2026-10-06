@@ -7,7 +7,7 @@ It is configured for the UAEU sign-in address at `https://elearning.uaeu.ac.ae/`
 ## What it does
 
 - Adds a **Midterm Compass** button to UAEU Blackboard pages.
-- Can step through every course in the current term from Blackboard's main Messages page.
+- Can step through every current-term course from Blackboard's main Messages page and check both **Messages** and **Announcements**.
 - Scans visible messages, announcements, and list items for exam language and dates.
 - Understands phrases such as “the midterm is on 15th of October at 10:30 AM.”
 - Deduplicates repeated scans and attaches a confidence score and source excerpt.
@@ -32,7 +32,7 @@ It is configured for the UAEU sign-in address at `https://elearning.uaeu.ac.ae/`
 
 1. In Blackboard, open the main **Messages** page from the left navigation.
 2. Let the message list finish loading. Scroll to load older messages when needed.
-3. Open the extension popup and choose **Scan current courses**. The Blackboard tab steps through each current-term course and returns to Messages when finished. For a single Messages or Announcements page, use the floating button or **Scan this page only**.
+3. Open the extension popup and choose **Scan current courses**. The Blackboard tab checks the Messages and Announcements screens for every current-term course, then returns to the main Messages page. For a single screen, use the floating button or **Scan this page only**.
 4. Open **Full schedule** and review low-confidence entries.
 5. Export the reviewed schedule to Apple Calendar, Google Calendar, Outlook, or another app that accepts `.ics` files.
 
@@ -87,7 +87,7 @@ tests/                   parser coverage
 
 Blackboard Ultra is a single-page application and institutions can customize its markup. The scanner uses semantic selectors (`article`, list items, roles, accessible labels) plus Blackboard `data-automation-id` hints. If UAEU changes the layout, add a selector in `collectDocuments()` in `content/content.js`; the parser and schedule do not need to change.
 
-The all-course flow uses Blackboard's visible course links and current signed-in session; it does not call unsupported private endpoints or store credentials. It scans message previews currently rendered for the active term, and returns to the Messages index. Scan course-specific Announcements pages separately when an instructor posts dates there.
+The all-course flow uses Blackboard's visible course links and current signed-in session; it does not call unsupported private endpoints or store credentials. It scans rendered message previews and announcement summaries for the active term, then returns to the Messages index. Posted timestamps are excluded from the extracted body so they cannot be mistaken for exam dates.
 
 ## Suggested next additions
 

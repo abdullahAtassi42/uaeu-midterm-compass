@@ -17,8 +17,9 @@
 
   function collectDocuments() {
     const selectors = [
-      "li.message-card", "article", "[role='article']", "[data-automation-id*='message']", "[data-automation-id*='announcement']",
-      ".latest-message", "[class*='message-body']", "[class*='announcement']", "main [role='listitem']"
+      ".message-card .latest-message", "tr.announcement-item-row .announcement-header-column:first-child",
+      "article", "[role='article']", "[data-automation-id*='message-body']", "[data-automation-id*='announcement-body']",
+      "[class*='message-body']", ".announcement-description", "main [role='listitem']"
     ];
     const nodes = [...new Set(selectors.flatMap(selector => [...document.querySelectorAll(selector)]))];
     const course = courseName();
@@ -68,22 +69,31 @@
       .filter(node => node.innerText.includes(term) && node.querySelector("a[analytics-id*='goToCourseMessages']"))
       .map(node => ({ node, name: node.querySelector("h2")?.innerText?.replace(/with \d+ unread messages?/i, "").trim() || "Course" }));
     if (!summaries.length) throw new Error(`No ${term.replace("_", " ")} courses were found on this page.`);
-    let detected = 0; let added = 0; const errors = [];
+    let detected = 0; let added = 0; let pages = 0; const errors = [];
     for (let index = 0; index < summaries.length; index += 1) {
       const summary = document.querySelectorAll("bb-course-conversations-summary");
       const current = [...summary].find(node => node.innerText.includes(term) && node.innerText.includes(summaries[index].name.split(" with ")[0]));
       const link = current?.querySelector("a[analytics-id*='goToCourseMessages']");
       if (!link) { errors.push(summaries[index].name); continue; }
+      let historyDepth = 1;
       link.click();
       try {
         await waitFor(() => /\/ultra\/courses\/[^/]+\/messages/.test(location.pathname) && document.querySelector(".message-cards"));
         const result = await chrome.runtime.sendMessage({ type: "PROCESS_DOCUMENTS", documents: collectDocuments() });
-        detected += result.detected || 0; added += result.added || 0;
+        detected += result.detected || 0; added += result.added || 0; pages += 1;
+        const announcementsLink = document.querySelector("a[href*='/ultra/courses/'][href$='/announcements']");
+        if (announcementsLink) {
+          historyDepth = 2;
+          announcementsLink.click();
+          await waitFor(() => /\/ultra\/courses\/[^/]+\/announcements/.test(location.pathname) && document.querySelector("main [role='region']"));
+          const announcementResult = await chrome.runtime.sendMessage({ type: "PROCESS_DOCUMENTS", documents: collectDocuments() });
+          detected += announcementResult.detected || 0; added += announcementResult.added || 0; pages += 1;
+        }
       } catch (error) { errors.push(summaries[index].name); }
-      history.back();
-      await waitFor(() => /^\/ultra\/messages\/?$/.test(location.pathname) && document.querySelector("bb-course-conversations-summary"));
+      history.go(-historyDepth);
+      await waitFor(() => /^\/ultra\/messages\/?$/.test(location.pathname) && document.querySelector("bb-course-conversations-summary"), 15000);
     }
-    return { ok: true, courses: summaries.length, detected, added, errors };
+    return { ok: true, courses: summaries.length, pages, detected, added, errors };
   }
 
   function toast(message) {

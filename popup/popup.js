@@ -32,7 +32,7 @@ $("#scanAll").addEventListener("click", async () => {
     if (!/^https:\/\/uaeu\.blackboard\.com\/ultra\/messages\/?$/.test(tab?.url || "")) throw new Error("Open Blackboard’s main Messages page first.");
     const result = await chrome.tabs.sendMessage(tab.id, { type: "SCAN_ALL_COURSES" });
     if (!result.ok) throw new Error(result.error);
-    $("#status").textContent = `Checked ${result.courses} courses; found ${result.detected}, added ${result.added}.${result.errors.length ? ` ${result.errors.length} could not be read.` : ""}`;
+    $("#status").textContent = `Checked Messages + Announcements in ${result.courses} courses; found ${result.detected}, added ${result.added}.${result.errors.length ? ` ${result.errors.length} could not be read.` : ""}`;
     await render();
   } catch (error) { $("#status").textContent = error.message; }
   finally { $("#scanAll").disabled = false; }
