@@ -31,7 +31,8 @@
 
   function collectDocuments() {
     const selectors = [
-      ".message-card .latest-message", "tr.announcement-item-row .announcement-header-column:first-child",
+      ".message-card .latest-message", "tr.announcement-item-row", ".announcement-item-row",
+      "announcement-list article", "announcement-list [role='listitem']", "[data-automation-id*='announcement']",
       "article", "[role='article']", "[data-automation-id*='message-body']", "[data-automation-id*='announcement-body']",
       "[class*='message-body']", ".announcement-description", "main [role='listitem']"
     ];
@@ -67,7 +68,14 @@
   async function runBackgroundPageScan() {
     const params = new URLSearchParams(location.search);
     const page = location.pathname.endsWith("/announcements") ? "announcements" : "messages";
-    await waitFor(() => page === "announcements" ? document.querySelector("announcement-list") : document.querySelector("bb-course-conversations"), 20000);
+    await waitFor(() => {
+      if (page === "messages") return document.querySelector("bb-course-conversations") || document.querySelector("main [role='main']");
+      const bodyText = document.body?.innerText || "";
+      return document.querySelector("announcement-list .announcement-item-row, announcement-list [role='listitem'], .announcement-item-row, [data-automation-id*='announcement']") ||
+        (/announcements/i.test(bodyText) && /\b\d+\s+Total\b|no announcements|no items to show/i.test(bodyText));
+    }, 20000).catch(() => null);
+    // Even if Blackboard changes its announcement-list component, report an empty
+    // result so the service worker can continue to that course's Messages fallback.
     const documents = collectDocuments();
     const result = await chrome.runtime.sendMessage({ type: "PROCESS_DOCUMENTS", documents });
     await chrome.runtime.sendMessage({

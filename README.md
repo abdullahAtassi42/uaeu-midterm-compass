@@ -12,6 +12,8 @@ It is configured for the UAEU sign-in address at `https://elearning.uaeu.ac.ae/`
 - Lists every scanned course even when no midterm date is found, clearly marked **Not announced yet**.
 - Scans visible messages, announcements, and list items for exam language and dates.
 - Extracts the midterm **date, time, and location** from phrases such as “the midterm is on 15th of October at 10:30 AM in Room B201.”
+- Reads Blackboard announcement rows and accessible announcement containers, including course pages whose list markup differs from the usual component.
+- Understands time ranges such as “from 7:00–8:00 PM” and stores the exam start time as 7:00 PM.
 - Reconciles rescheduled exams using the Blackboard post time, keeps the newest details, and retains a short previous-version history.
 - Deduplicates repeated scans and attaches a confidence score and source excerpt.
 - Shows a chronological schedule with search and “needs review” filtering.
@@ -91,7 +93,7 @@ After changing source files, click **Reload** on `chrome://extensions`, then ref
 1. `content/content.js` runs only on the two UAEU Blackboard hosts declared in `manifest.json`.
 2. On the main `/ultra/course` screen it reads `article[data-course-id]` cards for the current term, preserving each course even when no exam text exists.
 3. `background.js` opens Announcements first for each course. It opens Messages only when the announcement scan reports zero dated exams.
-4. `lib/parser.js` looks for explicit exam language near a valid date, time, and location. Cancelled, mock, and practice items are rejected; postponement/rescheduling language is treated as an update.
+4. `lib/parser.js` looks for explicit exam language near a valid date, time, and location. It reads announcement rows and accessible announcement containers, rejects cancelled/mock/practice items, and treats postponement/rescheduling language as an update. Time ranges use the first time as the start time.
 5. Blackboard's visible post timestamp is stored as source metadata (not parsed as an exam date). Events with the same course and assessment identity are reconciled so the newest post wins, while prior date/time/location values remain in bounded history.
 6. `background.js` stores a status for every scanned course:
    - `announced` when at least one dated exam item was detected;
