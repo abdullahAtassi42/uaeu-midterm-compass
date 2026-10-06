@@ -3,7 +3,14 @@ let events = [];
 let courses = [];
 const escapeHtml = text => { const el=document.createElement("span"); el.textContent=text||""; return el.innerHTML; };
 
-async function load() { const state = await chrome.runtime.sendMessage({ type:"GET_STATE" }); events = state.events || []; courses = state.courses || []; render(); }
+async function load() {
+  if (!globalThis.chrome?.runtime?.sendMessage) {
+    $("#runtimeNotice").hidden = false;
+    $("#export").disabled = true; $("#add").disabled = true;
+    render(); return;
+  }
+  const state = await chrome.runtime.sendMessage({ type:"GET_STATE" }); events = state.events || []; courses = state.courses || []; render();
+}
 function render() {
   const query = $("#search").value.toLowerCase(); const view = $("#view").value; const now = new Date(); now.setHours(0,0,0,0);
   const filteredEvents = events.filter(event => {
@@ -29,4 +36,4 @@ function render() {
 function openEditor(event={}) { $("#editorTitle").textContent=event.id?"Review midterm":"Add midterm"; $("#eventId").value=event.id||""; $("#course").value=event.course||""; $("#title").value=event.title||"Midterm exam"; $("#date").value=event.date||""; $("#time").value=event.time||""; $("#location").value=event.location||""; $("#sourceUrl").value=event.sourceUrl||""; $("#delete").hidden=!event.id; $("#editor").showModal(); }
 $("#save").addEventListener("click",async event=>{ event.preventDefault(); if(!$("#course").value||!$("#title").value||!$("#date").value) return $("#editor").querySelector("form").reportValidity(); const old=events.find(e=>e.id===$("#eventId").value)||{}; await chrome.runtime.sendMessage({type:"SAVE_EVENT",event:{...old,id:old.id||`evt_${crypto.randomUUID()}`,course:$("#course").value,title:$("#title").value,date:$("#date").value,time:$("#time").value||null,location:$("#location").value,sourceUrl:$("#sourceUrl").value,sourceLabel:old.sourceLabel||"Manual entry",sourceExcerpt:old.sourceExcerpt||"",confidence:1,detectedBy:old.id?old.detectedBy:"manual",durationMinutes:old.durationMinutes||60,createdAt:old.createdAt||new Date().toISOString()}}); $("#editor").close(); load(); });
 $("#delete").addEventListener("click",async()=>{ if(confirm("Remove this midterm from the schedule?")){ await chrome.runtime.sendMessage({type:"DELETE_EVENT",id:$("#eventId").value}); $("#editor").close(); load(); }});
-$("#add").addEventListener("click",()=>openEditor()); $("#export").addEventListener("click",()=>chrome.runtime.sendMessage({type:"EXPORT_ICS"})); $("#search").addEventListener("input",render); $("#view").addEventListener("change",render); chrome.storage.onChanged.addListener(load); load();
+$("#add").addEventListener("click",()=>openEditor()); $("#export").addEventListener("click",()=>chrome.runtime?.sendMessage({type:"EXPORT_ICS"})); $("#search").addEventListener("input",render); $("#view").addEventListener("change",render); if(globalThis.chrome?.storage?.onChanged) chrome.storage.onChanged.addListener(load); load();

@@ -3,7 +3,7 @@ importScripts("lib/parser.js");
 const DEFAULTS = {
   events: [],
   courses: [],
-  settings: { aiMode: "browser", reminderDays: [7, 1], apiEndpoint: "https://api.openai.com/v1", apiModel: "gpt-4o-mini" },
+  settings: { aiMode: "local", reminderDays: [7, 1], apiEndpoint: "", apiModel: "gpt-4o-mini" },
   lastScan: null
 };
 
@@ -70,7 +70,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "PROCESS_DOCUMENTS") {
       let events = MidtermParser.parseDocuments(message.documents || []);
       const { settings = DEFAULTS.settings } = await chrome.storage.local.get("settings");
-      if (settings.aiMode === "api" && settings.apiKey) {
+      if (settings.aiMode === "api" && settings.apiEndpoint) {
         try { events = await parseWithApi(message.documents, settings); }
         catch (error) { console.warn("API extraction failed; using local parser", error); }
       }
@@ -120,9 +120,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function parseWithApi(documents, settings) {
+  const headers = { "Content-Type": "application/json" };
+  if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
   const response = await fetch(`${settings.apiEndpoint.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${settings.apiKey}` },
+    headers,
     body: JSON.stringify({
       model: settings.apiModel,
       temperature: 0,

@@ -62,6 +62,22 @@
     });
   }
 
+  async function openCourseMessages(courseCode) {
+    const findLink = () => [...document.querySelectorAll("bb-course-conversations-summary")]
+      .find(node => node.innerText.includes(courseCode))
+      ?.querySelector("a[analytics-id*='goToCourseMessages']");
+    findLink()?.click();
+    try {
+      await waitFor(() => /\/ultra\/courses\/[^/]+\/messages/.test(location.pathname) && document.querySelector("bb-course-conversations"), 2500);
+    } catch {
+      if (!/^\/ultra\/messages\/?$/.test(location.pathname)) throw new Error("Blackboard opened an unexpected page.");
+      const retryLink = findLink();
+      if (!retryLink) throw new Error("The course message link disappeared before it could be scanned.");
+      retryLink.click();
+      await waitFor(() => /\/ultra\/courses\/[^/]+\/messages/.test(location.pathname) && document.querySelector("bb-course-conversations"), 15000);
+    }
+  }
+
   async function scanAllCurrentCourses() {
     if (!/^\/ultra\/messages\/?$/.test(location.pathname)) throw new Error("Open Blackboard’s main Messages page first.");
     const term = currentTermToken();
@@ -76,15 +92,10 @@
     if (!summaries.length) throw new Error(`No ${term.replace("_", " ")} courses were found on this page.`);
     let detected = 0; let added = 0; let pages = 0; const errors = []; const courseResults = [];
     for (let index = 0; index < summaries.length; index += 1) {
-      const summary = document.querySelectorAll("bb-course-conversations-summary");
-      const current = [...summary].find(node => node.innerText.includes(term) && node.innerText.includes(summaries[index].name.split(" with ")[0]));
-      const link = current?.querySelector("a[analytics-id*='goToCourseMessages']");
-      if (!link) { errors.push(summaries[index].name); continue; }
       let historyDepth = 1;
       let courseDetected = 0;
-      link.click();
       try {
-        await waitFor(() => /\/ultra\/courses\/[^/]+\/messages/.test(location.pathname) && document.querySelector(".message-cards"));
+        await openCourseMessages(summaries[index].code);
         const result = await chrome.runtime.sendMessage({ type: "PROCESS_DOCUMENTS", documents: collectDocuments() });
         courseDetected += result.detected || 0; detected += result.detected || 0; added += result.added || 0; pages += 1;
         const announcementsLink = document.querySelector("a[href*='/ultra/courses/'][href$='/announcements']");

@@ -42,9 +42,9 @@ The extension intentionally scans the page the student has opened rather than us
 
 ## AI and privacy
 
-The default **Private browser mode** processes text locally. It combines exam-aware classification, date/time parsing, confidence scoring, and cancellation filtering. No Blackboard message content leaves Chrome.
+The default **Local smart parser** processes text locally. It combines exam-aware classification, date/time parsing, confidence scoring, and cancellation filtering. It is not a language model, and no Blackboard message content leaves Chrome.
 
-An optional **OpenAI-compatible API** mode is available in Settings. It is off by default. If enabled, scanned message excerpts are sent to the configured API endpoint for structured extraction. The API key is stored in `chrome.storage.local`; it is never committed to this repository. For production distribution, use a small authenticated backend instead of placing a long-lived provider key in a browser extension.
+An optional **AI through a secure proxy** mode is available in Settings. It is off by default. If enabled, scanned message excerpts are sent to an OpenAI-compatible backend you control for structured extraction. The backend must hold the OpenAI API key; never put a provider key in this extension. OpenAI's official guidance says browser requests should be routed through a backend so the key remains secret.
 
 The API prompt treats Blackboard text as untrusted content and asks the model to return only structured exam data. Even with AI enabled, verify every result.
 
